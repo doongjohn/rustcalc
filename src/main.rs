@@ -16,6 +16,8 @@
 
 use std::{io::stdin, iter::Peekable, str::CharIndices};
 
+// fn debug_print
+
 #[derive(PartialEq)]
 enum TokenType {
     None,
@@ -85,9 +87,10 @@ fn parse_whitespace(line_iter: &mut Peekable<CharIndices>, index: &mut usize) {
 }
 
 fn parse_number(line_iter: &mut Peekable<CharIndices>, index: &mut usize, state: &mut State) {
-    // TODO: parse decimal
     let mut parsed = false;
     let mut result: f32 = 0.;
+    let mut decimal: f32 = 1.;
+
     while let Some((_, c)) = line_iter.peek() {
         match c {
             '0'..='9' => {
@@ -98,6 +101,27 @@ fn parse_number(line_iter: &mut Peekable<CharIndices>, index: &mut usize, state:
 
                 line_iter.next();
                 *index += 1;
+            }
+            '.' => {
+                parsed = true;
+
+                line_iter.next();
+                *index += 1;
+
+                while let Some((_, c)) = line_iter.peek() {
+                    match c {
+                        '0'..='9' => {
+                            decimal *= 0.1;
+                            result += c.to_digit(10).unwrap() as f32 * decimal;
+
+                            line_iter.next();
+                            *index += 1;
+                        }
+                        _ => {
+                            break;
+                        }
+                    }
+                }
             }
             _ => {
                 break;
@@ -197,7 +221,7 @@ fn parse_expression(line_iter: &mut Peekable<CharIndices>, index: &mut usize) ->
             _ if { c.is_whitespace() } => {
                 parse_whitespace(line_iter, index);
             }
-            '0'..='9' => {
+            '.' | '0'..='9' => {
                 parse_number(line_iter, index, &mut state);
             }
             '+' | '-'
@@ -230,11 +254,12 @@ fn parse_expression(line_iter: &mut Peekable<CharIndices>, index: &mut usize) ->
 
 fn main() {
     // read line from stdin
-    // let mut line = String::new();
-    // _ = stdin().read_line(&mut line).unwrap();
-    // let line = line.trim();
-    let line = "-2*(2+22)*-2";
-    println!("input = {}", line);
+    let mut line = String::new();
+    _ = stdin().read_line(&mut line).unwrap();
+    let line = line.trim();
+    // let line = "-2*((2+22)*2)*-2";
+    // let line = "2.01 + 2.0";
+    // println!("input = {}", line);
 
     let mut line_iter = line.char_indices().peekable();
     let mut index: usize = 0;
