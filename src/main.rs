@@ -213,7 +213,7 @@ fn parse_expression(
     paren: bool,
 ) -> State {
     let mut state = State {
-        op_list: [None, None, None],
+        op_list: Default::default(),
         token: TokenType::None,
         unary: 0 as char,
         num: 0.,
@@ -255,12 +255,18 @@ fn parse_expression(
         }
     }
 
-    if [TokenType::None, TokenType::Number].contains(&state.token) {
+    if [TokenType::Number].contains(&state.token) {
         calcuate_op_list_all(&mut state);
     } else {
         match state.token {
+            TokenType::None => {
+                println!(
+                    "error: expect {{ `Number` | `UnaryOperator` | `(` }} at index {}",
+                    index
+                );
+            }
             TokenType::InfixOperator | TokenType::UnaryOperator => {
-                println!("error: expect `Number` at index {}", index);
+                println!("error: expect {{ `Number` }} at index {}", index);
             }
             _ => {}
         }
@@ -276,6 +282,7 @@ fn main() {
     // let line = // test
     // "-2*-(-(2+22)*2)*-2"; // = 192
     // // "2.01 + 2.0"; // = 4.01
+    // // "(1)"; // = 1
     // println!("input = {}", line);
 
     let mut line_iter = line.trim().char_indices().peekable();
