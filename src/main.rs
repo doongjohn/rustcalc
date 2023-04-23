@@ -1,28 +1,35 @@
-// - 문자 순회:
-//   - 문자 == 숫자:
-//     - prev_num에 저장
-//   - 문자 == 연산자:
-//     - 이전 op_prec == 현재 op_prec:
-//       ```
-//       state.op_list[prec].op(state.op_list[prec].num, state.num)
-//       ```
-//     - 이전 op_prec > 현재 op_prec:
-//       ```
-//       for p in (0..=state.op_list.high).rev():
-//         state.op_list[p].op(state.op_list[p].num, state.num)
-//       ```
-//     - state.op_list[prec]에 연산자를 저장
-//     - 현재 op_prec을 state.op_prec에 저장
+// - if char is number:
+//   - state.num = number
+// - if char is operator:
+//   - if state.op_prec == current op_prec:
+//     ```
+//     state.op_list[prec].op(state.op_list[prec].num, state.num)
+//     state.op_list[prec] = None
+//     ```
+//   - if state.op_prec > current op_prec:
+//     ```
+//     for p in (0..=state.op_list.high).rev():
+//       state.op_list[p].op(state.op_list[p].num, state.num)
+//       state.op_list[p] = None
+//     ```
+//   - store operator to state.op_list[prec].op
+//   - store state.num to state.op_list[prec].num
+//   - store current op_prec to state.op_prec
+
+// TODO: parser should return error
+// TODO: support constants (pi, tau, e, ...)
+// TODO: support imaginary number
+// TODO: support custom variable (declaration, assignment)
+// TODO: support builtin function (sqrt, abs, floor, ceil, round, ...)
+// TODO: support custom function (infix, unary)
 
 use std::{io::stdin, iter::Peekable, str::CharIndices};
 
-// fn debug_print
-
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 enum TokenType {
     None,
     Number,
-    Operator,
+    InfixOperator,
     UnaryOperator,
 }
 
@@ -48,7 +55,7 @@ fn calcuate_op_list_at(state: &mut State, prec: usize) {
             '/' => op.num / state.num,
             '^' => op.num.powf(state.num),
             _ => {
-                println!("invalid operator \"{}\"", op.op);
+                println!("error: unsupported operator \"{}\"", op.op);
                 state.num
             }
         };
@@ -75,14 +82,22 @@ fn apply_unary(state: &mut State) {
     }
 }
 
+fn consume(line_iter: &mut Peekable<CharIndices>, index: &mut usize) {
+    if let Some((_, _c)) = line_iter.peek() {
+        // println!("consume character [{}] {}", index, _c);
+        line_iter.next();
+        *index += 1;
+    }
+}
+
 fn parse_whitespace(line_iter: &mut Peekable<CharIndices>, index: &mut usize) {
+    // TODO: check unallowed whitespace based on the `state.token`
     while let Some((_, c)) = line_iter.peek() {
         if !c.is_whitespace() {
             return;
         }
 
-        line_iter.next();
-        *index += 1;
+        consume(line_iter, index);
     }
 }
 
@@ -99,14 +114,12 @@ fn parse_number(line_iter: &mut Peekable<CharIndices>, index: &mut usize, state:
                 result *= 10.0;
                 result += c.to_digit(10).unwrap() as f32;
 
-                line_iter.next();
-                *index += 1;
+                consume(line_iter, index);
             }
             '.' => {
                 parsed = true;
 
-                line_iter.next();
-                *index += 1;
+                consume(line_iter, index);
 
                 while let Some((_, c)) = line_iter.peek() {
                     match c {
@@ -114,8 +127,7 @@ fn parse_number(line_iter: &mut Peekable<CharIndices>, index: &mut usize, state:
                             decimal *= 0.1;
                             result += c.to_digit(10).unwrap() as f32 * decimal;
 
-                            line_iter.next();
-                            *index += 1;
+                            consume(line_iter, index);
                         }
                         _ => {
                             break;
@@ -133,9 +145,8 @@ fn parse_number(line_iter: &mut Peekable<CharIndices>, index: &mut usize, state:
         // update state
         state.token = TokenType::Number;
         state.num = result;
-        apply_unary(state);
 
-        println!("number [{}] {}", index, result);
+        // println!("number [{}] {}", index, result);
     }
 }
 
@@ -160,16 +171,15 @@ fn parse_operator(line_iter: &mut Peekable<CharIndices>, index: &mut usize, stat
             }
 
             // update state
-            state.token = TokenType::Operator;
+            state.token = TokenType::InfixOperator;
             state.op_prec = parsed_prec;
             state.op_list[prec] = Some(Opteration {
                 num: state.num,
                 op: c.clone(),
             });
 
-            println!("operator [{}] {}", index, c);
-            line_iter.next();
-            *index += 1;
+            // println!("operator [{}] {}", index, c);
+            consume(line_iter, index);
         }
     }
 }
@@ -182,32 +192,26 @@ fn parse_unary(line_iter: &mut Peekable<CharIndices>, index: &mut usize, state: 
                 state.token = TokenType::UnaryOperator;
                 state.unary = c.clone();
 
-                println!("unary operator [{}] {}", index, c);
-
-                line_iter.next();
-                *index += 1;
+                // println!("unary operator [{}] {}", index, c);
+                consume(line_iter, index);
             }
             _ => {}
         }
     }
 }
 
-fn parse_consume(line_iter: &mut Peekable<CharIndices>, index: &mut usize) {
-    if let Some(_) = line_iter.peek() {
-        line_iter.next();
-        *index += 1;
-    }
-}
-
 fn parse_unexpected(line_iter: &mut Peekable<CharIndices>, index: &mut usize) {
     if let Some((_, c)) = line_iter.peek() {
-        println!("unexpected character [{}] {}", index, c);
-        line_iter.next();
-        *index += 1;
+        println!("error: unexpected character \"{}\" at {}", c, index);
+        consume(line_iter, index);
     }
 }
 
-fn parse_expression(line_iter: &mut Peekable<CharIndices>, index: &mut usize) -> State {
+fn parse_expression(
+    line_iter: &mut Peekable<CharIndices>,
+    index: &mut usize,
+    paren: bool,
+) -> State {
     let mut state = State {
         op_list: [None, None, None],
         token: TokenType::None,
@@ -221,24 +225,28 @@ fn parse_expression(line_iter: &mut Peekable<CharIndices>, index: &mut usize) ->
             _ if { c.is_whitespace() } => {
                 parse_whitespace(line_iter, index);
             }
-            '.' | '0'..='9' => {
-                parse_number(line_iter, index, &mut state);
-            }
             '+' | '-'
-                if { state.token == TokenType::None || state.token == TokenType::Operator } =>
+                if {
+                    state.token == TokenType::None || state.token == TokenType::InfixOperator
+                } =>
             {
                 parse_unary(line_iter, index, &mut state);
             }
-            '+' | '-' | '*' | '/' | '^' => {
+            '+' | '-' | '*' | '/' | '^' if { state.token == TokenType::Number } => {
                 parse_operator(line_iter, index, &mut state);
             }
-            '(' => {
-                parse_consume(line_iter, index);
-                state.num = parse_expression(line_iter, index).num;
+            '.' | '0'..='9' if { state.token != TokenType::Number } => {
+                parse_number(line_iter, index, &mut state);
                 apply_unary(&mut state);
             }
-            ')' => {
-                parse_consume(line_iter, index);
+            '(' if { state.token != TokenType::Number } => {
+                consume(line_iter, index);
+                state.token = TokenType::Number;
+                state.num = parse_expression(line_iter, index, true).num;
+                apply_unary(&mut state);
+            }
+            ')' if { paren } => {
+                consume(line_iter, index);
                 break;
             }
             _ => {
@@ -247,23 +255,32 @@ fn parse_expression(line_iter: &mut Peekable<CharIndices>, index: &mut usize) ->
         }
     }
 
-    calcuate_op_list_all(&mut state);
+    if [TokenType::None, TokenType::Number].contains(&state.token) {
+        calcuate_op_list_all(&mut state);
+    } else {
+        match state.token {
+            TokenType::InfixOperator | TokenType::UnaryOperator => {
+                println!("error: expect `Number` at index {}", index);
+            }
+            _ => {}
+        }
+    }
 
     state
 }
 
 fn main() {
-    // read line from stdin
     let mut line = String::new();
     _ = stdin().read_line(&mut line).unwrap();
-    let line = line.trim();
-    // let line = "-2*((2+22)*2)*-2";
-    // let line = "2.01 + 2.0";
+
+    // let line = // test
+    // "-2*-(-(2+22)*2)*-2"; // = 192
+    // // "2.01 + 2.0"; // = 4.01
     // println!("input = {}", line);
 
-    let mut line_iter = line.char_indices().peekable();
+    let mut line_iter = line.trim().char_indices().peekable();
     let mut index: usize = 0;
 
-    let state = parse_expression(&mut line_iter, &mut index);
+    let state = parse_expression(&mut line_iter, &mut index, false);
     println!("result = {}", state.num);
 }
