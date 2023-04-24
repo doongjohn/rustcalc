@@ -95,7 +95,7 @@ fn parse_number(line_iter: &mut Peekable<CharIndices>, index: &mut usize, state:
     let mut result: f32 = 0.;
     let mut decimal: f32 = 1.;
 
-    while let Some((_, c)) = line_iter.peek() {
+    'outer: while let Some((_, c)) = line_iter.peek() {
         match c {
             '0'..='9' => {
                 parsed = true;
@@ -119,7 +119,7 @@ fn parse_number(line_iter: &mut Peekable<CharIndices>, index: &mut usize, state:
                             consume(line_iter, index);
                         }
                         _ => {
-                            break;
+                            break 'outer;
                         }
                     }
                 }
@@ -199,7 +199,7 @@ fn parse_unary(line_iter: &mut Peekable<CharIndices>, index: &mut usize, state: 
 fn parse_expression(
     line_iter: &mut Peekable<CharIndices>,
     index: &mut usize,
-    mut paren: bool,
+    mut paren_opened: bool,
 ) -> Result<State, String> {
     let mut state = State {
         op_list: Default::default(),
@@ -221,9 +221,6 @@ fn parse_expression(
             {
                 parse_unary(line_iter, index, &mut state);
             }
-            _ if { INFIX_OPERATORS.contains(c) && state.token == TokenType::Number } => {
-                parse_operator(line_iter, index, &mut state);
-            }
             '.' | '0'..='9' if { state.token != TokenType::Number } => {
                 parse_number(line_iter, index, &mut state);
                 apply_unary(&mut state);
@@ -241,10 +238,13 @@ fn parse_expression(
                     }
                 }
             }
-            ')' if { paren } => {
-                paren = false;
+            ')' if { paren_opened } => {
+                paren_opened = false;
                 consume(line_iter, index);
                 break;
+            }
+            _ if { INFIX_OPERATORS.contains(c) && state.token == TokenType::Number } => {
+                parse_operator(line_iter, index, &mut state);
             }
             _ => match state.token {
                 TokenType::None | TokenType::InfixOperator => {
@@ -284,7 +284,7 @@ fn parse_expression(
         }
     }
 
-    if paren {
+    if paren_opened {
         return Err(format!("error: expect {{ `)` }} at index {}", index));
     }
 
