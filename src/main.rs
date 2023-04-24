@@ -16,20 +16,46 @@
 //   - store state.num to state.op_list[prec].num
 //   - store current op_prec to state.op_prec
 
-// TODO: parser should return error
-// TODO: support constants (pi, tau, e, ...)
 // TODO: support imaginary number
 // TODO: support custom variable (declaration, assignment)
 // TODO: support builtin function (sqrt, abs, floor, ceil, round, ...)
 // TODO: support custom function (infix, unary)
 
-use std::{io::stdin, iter::Peekable, str::CharIndices};
+use std::{
+    f32::consts::{E, PI, TAU},
+    io::stdin,
+    iter::Peekable,
+    str::CharIndices,
+};
 
-const INFIX_OPERATORS: [char; 5] = ['+', '-', '*', '/', '^'];
+struct Context<'a> {
+    text: &'a str,
+    iter: Peekable<CharIndices<'a>>,
+    index: usize,
+}
+
+impl Context<'_> {
+    fn next(&mut self) {
+        if let Some((_, _c)) = self.iter.peek() {
+            self.iter.next();
+            self.index += 1;
+        }
+    }
+
+    fn next_n(&mut self, n: usize) {
+        let remainder = self.text.len() - self.index;
+        let n = n.min(remainder);
+        if n > 0 {
+            self.iter.nth(n - 1);
+            self.index += n;
+        }
+    }
+}
 
 #[derive(Debug, PartialEq)]
 enum TokenType {
     None,
+    UnkownConstant,
     Number,
     InfixOperator,
     UnaryOperator,
@@ -68,240 +94,277 @@ impl State {
             Self::calcuate_op_list_at(self, p);
         }
     }
-}
 
-fn apply_unary(state: &mut State) {
-    match state.unary {
-        '+' => {
-            state.unary = 0 as char;
-        }
-        '-' => {
-            state.num *= -1.;
-            state.unary = 0 as char;
-        }
-        _ => {}
-    }
-}
-
-fn consume(line_iter: &mut Peekable<CharIndices>, index: &mut usize) {
-    if let Some((_, _c)) = line_iter.peek() {
-        line_iter.next();
-        *index += 1;
-    }
-}
-
-fn parse_number(line_iter: &mut Peekable<CharIndices>, index: &mut usize, state: &mut State) {
-    let mut parsed = false;
-    let mut result: f32 = 0.;
-    let mut decimal: f32 = 1.;
-
-    'outer: while let Some((_, c)) = line_iter.peek() {
-        match c {
-            '0'..='9' => {
-                parsed = true;
-
-                result *= 10.0;
-                result += c.to_digit(10).unwrap() as f32;
-
-                consume(line_iter, index);
+    fn apply_unary(&mut self) {
+        match self.unary {
+            '+' => {
+                self.unary = 0 as char;
             }
-            '.' => {
-                parsed = true;
-
-                consume(line_iter, index);
-
-                while let Some((_, c)) = line_iter.peek() {
-                    match c {
-                        '0'..='9' => {
-                            decimal *= 0.1;
-                            result += c.to_digit(10).unwrap() as f32 * decimal;
-
-                            consume(line_iter, index);
-                        }
-                        _ => {
-                            break 'outer;
-                        }
-                    }
-                }
-            }
-            _ => {
-                break;
-            }
-        }
-    }
-
-    if parsed {
-        // update state
-        state.token = TokenType::Number;
-        state.num = result;
-
-        // println!("number [{}] {}", index, result);
-    }
-}
-
-fn parse_operator(line_iter: &mut Peekable<CharIndices>, index: &mut usize, state: &mut State) {
-    let mut parsed_prec: i8 = -1;
-
-    if let Some((_, c)) = line_iter.peek() {
-        match c {
-            '+' | '-' => {
-                parsed_prec = 0;
-            }
-            '*' | '/' => {
-                parsed_prec = 1;
-            }
-            '^' => {
-                parsed_prec = 2;
+            '-' => {
+                self.num *= -1.;
+                self.unary = 0 as char;
             }
             _ => {}
         }
+    }
+}
 
-        if parsed_prec >= 0 {
-            let prec = parsed_prec as usize;
+impl Context<'_> {
+    fn parse_constant(&mut self, state: &mut State) {
+        const CONSTANTS: [&str; 3] = ["pi", "tau", "e"];
+        const CONSTANTS_VALUE: [f32; 3] = [PI, TAU, E];
 
-            // do calcuation
-            if state.op_prec == parsed_prec {
-                state.calcuate_op_list_at(prec);
-            } else if state.op_prec > parsed_prec {
+        let mut parsed = false;
+        for (i, constant) in CONSTANTS.iter().enumerate() {
+            if self.text[self.index..].starts_with(constant) {
+                parsed = true;
+
+                // update state
+                state.token = TokenType::Number;
+                state.num = CONSTANTS_VALUE[i];
+
+                self.next_n(constant.len());
+                break;
+            }
+        }
+
+        if !parsed {
+            state.token = TokenType::UnkownConstant;
+        }
+    }
+
+    fn parse_number(&mut self, state: &mut State) {
+        let mut result: f32 = 0.;
+        let mut decimal: f32 = 1.;
+
+        let mut parsed = false;
+        'outer: while let Some((_, c)) = self.iter.peek() {
+            match c {
+                '0'..='9' => {
+                    parsed = true;
+
+                    result *= 10.0;
+                    result += c.to_digit(10).unwrap() as f32;
+
+                    self.next();
+                }
+                '.' => {
+                    parsed = true;
+
+                    self.next();
+
+                    while let Some((_, c)) = self.iter.peek() {
+                        match c {
+                            '0'..='9' => {
+                                decimal *= 0.1;
+                                result += c.to_digit(10).unwrap() as f32 * decimal;
+
+                                self.next();
+                            }
+                            _ => {
+                                break 'outer;
+                            }
+                        }
+                    }
+                }
+                _ => {
+                    break;
+                }
+            }
+        }
+
+        if parsed {
+            // update state
+            state.token = TokenType::Number;
+            state.num = result;
+
+            // println!("number [{}] {}", index, result);
+        }
+    }
+
+    fn parse_operator(&mut self, state: &mut State) {
+        let mut parsed_prec: i8 = -1;
+
+        if let Some((_, c)) = self.iter.peek() {
+            match c {
+                '+' | '-' => {
+                    parsed_prec = 0;
+                }
+                '*' | '/' => {
+                    parsed_prec = 1;
+                }
+                '^' => {
+                    parsed_prec = 2;
+                }
+                _ => {}
+            }
+
+            if parsed_prec >= 0 {
+                let prec = parsed_prec as usize;
+
+                // do calcuation
+                if state.op_prec == parsed_prec {
+                    state.calcuate_op_list_at(prec);
+                } else if state.op_prec > parsed_prec {
+                    state.calcuate_op_list_all();
+                }
+
+                // update state
+                state.token = TokenType::InfixOperator;
+                state.op_prec = parsed_prec;
+                state.op_list[prec] = Some(Opteration {
+                    num: state.num,
+                    op: c.clone(),
+                });
+
+                // println!("operator [{}] {}", index, c);
+                self.next();
+            }
+        }
+    }
+
+    fn parse_unary(&mut self, state: &mut State) {
+        if let Some((_, c)) = self.iter.peek() {
+            match c {
+                '+' | '-' => {
+                    // update state
+                    state.token = TokenType::UnaryOperator;
+                    state.unary = c.clone();
+
+                    // println!("unary operator [{}] {}", index, c);
+                    self.next();
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn parse_expression(&mut self, mut paren_opened: bool) -> Result<State, String> {
+        let mut state = State {
+            op_list: Default::default(),
+            token: TokenType::None,
+            unary: 0 as char,
+            num: 0.,
+            op_prec: 0,
+        };
+
+        while let Some((_, c)) = self.iter.peek() {
+            match c {
+                _ if { c.is_whitespace() && state.token != TokenType::UnaryOperator } => {
+                    self.next();
+                }
+                '+' | '-'
+                    if {
+                        state.token == TokenType::None || state.token == TokenType::InfixOperator
+                    } =>
+                {
+                    self.parse_unary(&mut state);
+                }
+                'a'..='z'
+                    if {
+                        state.token != TokenType::Number && state.token != TokenType::UnkownConstant
+                    } =>
+                {
+                    self.parse_constant(&mut state);
+                    state.apply_unary();
+                }
+                '.' | '0'..='9' if { state.token != TokenType::Number } => {
+                    self.parse_number(&mut state);
+                    state.apply_unary();
+                }
+                '(' if { state.token != TokenType::Number } => {
+                    self.next();
+                    match self.parse_expression(true) {
+                        Ok(inner_state) => {
+                            state.token = TokenType::Number;
+                            state.num = inner_state.num;
+                            state.apply_unary();
+                        }
+                        Err(msg) => {
+                            return Err(msg);
+                        }
+                    }
+                }
+                ')' if { paren_opened } => {
+                    paren_opened = false;
+                    self.next();
+                    break;
+                }
+                '+' | '-' | '*' | '/' | '^' if { state.token == TokenType::Number } => {
+                    self.parse_operator(&mut state);
+                }
+                _ => match state.token {
+                    TokenType::UnkownConstant => {
+                        return Err(format!(
+                            "error: expect {{ `pi` | 'tau' | 'e' }} at index {} but found \"{}\"",
+                            self.index, c
+                        ));
+                    }
+                    TokenType::None | TokenType::InfixOperator => {
+                        return Err(format!(
+                        "error: expect {{ `Number` | `UnaryOperator` | `(` }} at index {} but found \"{}\"",
+                        self.index, c
+                    ));
+                    }
+                    TokenType::UnaryOperator => {
+                        return Err(format!(
+                            "error: expect {{ `Number` | `(` }} at index {} but found \"{}\"",
+                            self.index, c
+                        ));
+                    }
+                    TokenType::Number => {
+                        return Err(format!(
+                            "error: expect {{ `InfixOperator` }} at index {} but found \"{}\"",
+                            self.index, c
+                        ));
+                    }
+                },
+            }
+        }
+
+        match state.token {
+            TokenType::None => {
+                return Err(format!(
+                    "error: expect {{ `Number` | `UnaryOperator` | `(` }} at index {}",
+                    self.index
+                ));
+            }
+            TokenType::InfixOperator | TokenType::UnaryOperator => {
+                return Err(format!(
+                    "error: expect {{ `Number` }} at index {}",
+                    self.index
+                ));
+            }
+            TokenType::Number => {
                 state.calcuate_op_list_all();
             }
-
-            // update state
-            state.token = TokenType::InfixOperator;
-            state.op_prec = parsed_prec;
-            state.op_list[prec] = Some(Opteration {
-                num: state.num,
-                op: c.clone(),
-            });
-
-            // println!("operator [{}] {}", index, c);
-            consume(line_iter, index);
-        }
-    }
-}
-
-fn parse_unary(line_iter: &mut Peekable<CharIndices>, index: &mut usize, state: &mut State) {
-    if let Some((_, c)) = line_iter.peek() {
-        match c {
-            '+' | '-' => {
-                // update state
-                state.token = TokenType::UnaryOperator;
-                state.unary = c.clone();
-
-                // println!("unary operator [{}] {}", index, c);
-                consume(line_iter, index);
-            }
             _ => {}
         }
-    }
-}
 
-fn parse_expression(
-    line_iter: &mut Peekable<CharIndices>,
-    index: &mut usize,
-    mut paren_opened: bool,
-) -> Result<State, String> {
-    let mut state = State {
-        op_list: Default::default(),
-        token: TokenType::None,
-        unary: 0 as char,
-        num: 0.,
-        op_prec: 0,
-    };
-
-    while let Some((_, c)) = line_iter.peek() {
-        match c {
-            _ if { c.is_whitespace() && state.token != TokenType::UnaryOperator } => {
-                consume(line_iter, index);
-            }
-            '+' | '-'
-                if {
-                    state.token == TokenType::None || state.token == TokenType::InfixOperator
-                } =>
-            {
-                parse_unary(line_iter, index, &mut state);
-            }
-            '.' | '0'..='9' if { state.token != TokenType::Number } => {
-                parse_number(line_iter, index, &mut state);
-                apply_unary(&mut state);
-            }
-            '(' if { state.token != TokenType::Number } => {
-                consume(line_iter, index);
-                match parse_expression(line_iter, index, true) {
-                    Ok(inner_state) => {
-                        state.token = TokenType::Number;
-                        state.num = inner_state.num;
-                        apply_unary(&mut state);
-                    }
-                    Err(msg) => {
-                        return Err(msg);
-                    }
-                }
-            }
-            ')' if { paren_opened } => {
-                paren_opened = false;
-                consume(line_iter, index);
-                break;
-            }
-            _ if { INFIX_OPERATORS.contains(c) && state.token == TokenType::Number } => {
-                parse_operator(line_iter, index, &mut state);
-            }
-            _ => match state.token {
-                TokenType::None | TokenType::InfixOperator => {
-                    return Err(format!(
-                        "error: expect {{ `Number` | `UnaryOperator` | `(` }} at index {} but found \"{}\"",
-                        index, c
-                    ));
-                }
-                TokenType::UnaryOperator => {
-                    return Err(format!(
-                        "error: expect {{ `Number` | `(` }} at index {} but found \"{}\"",
-                        index, c
-                    ));
-                }
-                TokenType::Number => {
-                    return Err(format!(
-                        "error: expect {{ `InfixOperator` }} at index {} but found \"{}\"",
-                        index, c
-                    ));
-                }
-            },
+        if paren_opened {
+            return Err(format!("error: expect {{ `)` }} at index {}", self.index));
         }
-    }
 
-    match state.token {
-        TokenType::None => {
-            return Err(format!(
-                "error: expect {{ `Number` | `UnaryOperator` | `(` }} at index {}",
-                index
-            ));
-        }
-        TokenType::InfixOperator | TokenType::UnaryOperator => {
-            return Err(format!("error: expect {{ `Number` }} at index {}", index));
-        }
-        TokenType::Number => {
-            state.calcuate_op_list_all();
-        }
+        Ok(state)
     }
-
-    if paren_opened {
-        return Err(format!("error: expect {{ `)` }} at index {}", index));
-    }
-
-    Ok(state)
 }
 
 fn main() {
-    let mut line = String::new();
-    _ = stdin().read_line(&mut line).unwrap();
+    let mut text = String::new();
+    _ = stdin().read_line(&mut text).unwrap();
 
-    // let line = "1 + 2 + 3 + (1)--2*-(+(2.3+22.7)+2*3^2)*-2"; // = 179
-    // println!("{}", line);
+    // let text = "1 + 2 + 3 + (1)--2*-(+(2.3+22.7)+2*3^2)*-2"; // = 179
+    // let text = "1 + -pi * tau"; // = -18.73921
+    // println!("{}", text);
 
-    let mut line_iter = line.trim().char_indices().peekable();
-    let mut index: usize = 0;
+    let text = text.trim();
+    let mut context = Context {
+        text,
+        iter: text.char_indices().peekable(),
+        index: 0,
+    };
 
-    match parse_expression(&mut line_iter, &mut index, false) {
+    match context.parse_expression(false) {
         Ok(state) => println!("= {}", state.num),
         Err(msg) => println!("{}", msg),
     }
