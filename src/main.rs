@@ -25,6 +25,8 @@
 
 use std::{io::stdin, iter::Peekable, str::CharIndices};
 
+const INFIX_OPERATORS: [char; 5] = ['+', '-', '*', '/', '^'];
+
 #[derive(Debug, PartialEq)]
 enum TokenType {
     None,
@@ -46,26 +48,25 @@ struct State {
     op_prec: i8,
 }
 
-fn calcuate_op_list_at(state: &mut State, prec: usize) {
-    if let Some(op) = &mut state.op_list[prec] {
-        state.num = match op.op {
-            '+' => op.num + state.num,
-            '-' => op.num - state.num,
-            '*' => op.num * state.num,
-            '/' => op.num / state.num,
-            '^' => op.num.powf(state.num),
-            _ => {
-                println!("error: unsupported operator \"{}\"", op.op);
-                state.num
-            }
-        };
-        state.op_list[prec] = None;
+impl State {
+    fn calcuate_op_list_at(&mut self, prec: usize) {
+        if let Some(op) = &mut self.op_list[prec] {
+            self.num = match op.op {
+                '+' => op.num + self.num,
+                '-' => op.num - self.num,
+                '*' => op.num * self.num,
+                '/' => op.num / self.num,
+                '^' => op.num.powf(self.num),
+                _ => panic!("operator \"{}\" unimplemented!", op.op),
+            };
+            self.op_list[prec] = None;
+        }
     }
-}
 
-fn calcuate_op_list_all(state: &mut State) {
-    for p in (0..=state.op_list.len() - 1).rev() {
-        calcuate_op_list_at(state, p);
+    fn calcuate_op_list_all(&mut self) {
+        for p in (0..=self.op_list.len() - 1).rev() {
+            Self::calcuate_op_list_at(self, p);
+        }
     }
 }
 
@@ -84,20 +85,8 @@ fn apply_unary(state: &mut State) {
 
 fn consume(line_iter: &mut Peekable<CharIndices>, index: &mut usize) {
     if let Some((_, _c)) = line_iter.peek() {
-        // println!("consume character [{}] {}", index, _c);
         line_iter.next();
         *index += 1;
-    }
-}
-
-fn parse_whitespace(line_iter: &mut Peekable<CharIndices>, index: &mut usize) {
-    // TODO: check unallowed whitespace based on the `state.token`
-    while let Some((_, c)) = line_iter.peek() {
-        if !c.is_whitespace() {
-            return;
-        }
-
-        consume(line_iter, index);
     }
 }
 
@@ -152,11 +141,18 @@ fn parse_number(line_iter: &mut Peekable<CharIndices>, index: &mut usize, state:
 
 fn parse_operator(line_iter: &mut Peekable<CharIndices>, index: &mut usize, state: &mut State) {
     let mut parsed_prec: i8 = -1;
+
     if let Some((_, c)) = line_iter.peek() {
         match c {
-            '+' | '-' => parsed_prec = 0,
-            '*' | '/' => parsed_prec = 1,
-            '^' => parsed_prec = 2,
+            '+' | '-' => {
+                parsed_prec = 0;
+            }
+            '*' | '/' => {
+                parsed_prec = 1;
+            }
+            '^' => {
+                parsed_prec = 2;
+            }
             _ => {}
         }
 
@@ -165,9 +161,9 @@ fn parse_operator(line_iter: &mut Peekable<CharIndices>, index: &mut usize, stat
 
             // do calcuation
             if state.op_prec == parsed_prec {
-                calcuate_op_list_at(state, prec);
+                state.calcuate_op_list_at(prec);
             } else if state.op_prec > parsed_prec {
-                calcuate_op_list_all(state);
+                state.calcuate_op_list_all();
             }
 
             // update state
@@ -200,18 +196,11 @@ fn parse_unary(line_iter: &mut Peekable<CharIndices>, index: &mut usize, state: 
     }
 }
 
-fn parse_unexpected(line_iter: &mut Peekable<CharIndices>, index: &mut usize) {
-    if let Some((_, c)) = line_iter.peek() {
-        println!("error: unexpected character \"{}\" at {}", c, index);
-        consume(line_iter, index);
-    }
-}
-
 fn parse_expression(
     line_iter: &mut Peekable<CharIndices>,
     index: &mut usize,
-    paren: bool,
-) -> State {
+    mut paren: bool,
+) -> Result<State, String> {
     let mut state = State {
         op_list: Default::default(),
         token: TokenType::None,
@@ -222,8 +211,8 @@ fn parse_expression(
 
     while let Some((_, c)) = line_iter.peek() {
         match c {
-            _ if { c.is_whitespace() } => {
-                parse_whitespace(line_iter, index);
+            _ if { c.is_whitespace() && state.token != TokenType::UnaryOperator } => {
+                consume(line_iter, index);
             }
             '+' | '-'
                 if {
@@ -232,7 +221,7 @@ fn parse_expression(
             {
                 parse_unary(line_iter, index, &mut state);
             }
-            '+' | '-' | '*' | '/' | '^' if { state.token == TokenType::Number } => {
+            _ if { INFIX_OPERATORS.contains(c) && state.token == TokenType::Number } => {
                 parse_operator(line_iter, index, &mut state);
             }
             '.' | '0'..='9' if { state.token != TokenType::Number } => {
@@ -241,53 +230,79 @@ fn parse_expression(
             }
             '(' if { state.token != TokenType::Number } => {
                 consume(line_iter, index);
-                state.token = TokenType::Number;
-                state.num = parse_expression(line_iter, index, true).num;
-                apply_unary(&mut state);
+                match parse_expression(line_iter, index, true) {
+                    Ok(inner_state) => {
+                        state.token = TokenType::Number;
+                        state.num = inner_state.num;
+                        apply_unary(&mut state);
+                    }
+                    Err(msg) => {
+                        return Err(msg);
+                    }
+                }
             }
             ')' if { paren } => {
+                paren = false;
                 consume(line_iter, index);
                 break;
             }
-            _ => {
-                parse_unexpected(line_iter, index);
-            }
+            _ => match state.token {
+                TokenType::None | TokenType::InfixOperator => {
+                    return Err(format!(
+                        "error: expect {{ `Number` | `UnaryOperator` | `(` }} at index {} but found \"{}\"",
+                        index, c
+                    ));
+                }
+                TokenType::UnaryOperator => {
+                    return Err(format!(
+                        "error: expect {{ `Number` | `(` }} at index {} but found \"{}\"",
+                        index, c
+                    ));
+                }
+                TokenType::Number => {
+                    return Err(format!(
+                        "error: expect {{ `InfixOperator` }} at index {} but found \"{}\"",
+                        index, c
+                    ));
+                }
+            },
         }
     }
 
-    if [TokenType::Number].contains(&state.token) {
-        calcuate_op_list_all(&mut state);
-    } else {
-        match state.token {
-            TokenType::None => {
-                println!(
-                    "error: expect {{ `Number` | `UnaryOperator` | `(` }} at index {}",
-                    index
-                );
-            }
-            TokenType::InfixOperator | TokenType::UnaryOperator => {
-                println!("error: expect {{ `Number` }} at index {}", index);
-            }
-            _ => {}
+    match state.token {
+        TokenType::None => {
+            return Err(format!(
+                "error: expect {{ `Number` | `UnaryOperator` | `(` }} at index {}",
+                index
+            ));
+        }
+        TokenType::InfixOperator | TokenType::UnaryOperator => {
+            return Err(format!("error: expect {{ `Number` }} at index {}", index));
+        }
+        TokenType::Number => {
+            state.calcuate_op_list_all();
         }
     }
 
-    state
+    if paren {
+        return Err(format!("error: expect {{ `)` }} at index {}", index));
+    }
+
+    Ok(state)
 }
 
 fn main() {
     let mut line = String::new();
     _ = stdin().read_line(&mut line).unwrap();
 
-    // let line = // test
-    // "-2*-(-(2+22)*2)*-2"; // = 192
-    // // "2.01 + 2.0"; // = 4.01
-    // // "(1)"; // = 1
-    // println!("input = {}", line);
+    // let line = "1 + 2 + 3 + (1)--2*-(+(2.3+22.7)+2*3^2)*-2"; // = 179
+    // println!("{}", line);
 
     let mut line_iter = line.trim().char_indices().peekable();
     let mut index: usize = 0;
 
-    let state = parse_expression(&mut line_iter, &mut index, false);
-    println!("result = {}", state.num);
+    match parse_expression(&mut line_iter, &mut index, false) {
+        Ok(state) => println!("= {}", state.num),
+        Err(msg) => println!("{}", msg),
+    }
 }
