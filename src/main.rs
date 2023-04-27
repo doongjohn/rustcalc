@@ -53,14 +53,14 @@ struct Context<'a> {
 }
 
 impl Context<'_> {
-    fn next(&mut self) {
+    fn iter_next(&mut self) {
         if let Some((_, _c)) = self.iter.peek() {
             self.iter.next();
             self.index += 1;
         }
     }
 
-    fn next_n(&mut self, n: usize) {
+    fn iter_next_n(&mut self, n: usize) {
         let remainder = self.text.len() - self.index;
         let n = n.min(remainder);
         if n > 0 {
@@ -135,13 +135,12 @@ impl Context<'_> {
         let mut parsed = false;
         for (i, constant) in CONSTANTS.iter().enumerate() {
             if self.text[self.index..].starts_with(constant) {
-                parsed = true;
-
                 // update state
                 state.token = TokenType::Number;
                 state.num = CONSTANTS_VALUE[i];
 
-                self.next_n(constant.len());
+                parsed = true;
+                self.iter_next_n(constant.len());
                 break;
             }
         }
@@ -157,27 +156,27 @@ impl Context<'_> {
 
         let mut parsed = false;
         'outer: while let Some((_, c)) = self.iter.peek() {
+            // parse int
             match c {
                 '0'..='9' => {
-                    parsed = true;
-
                     result *= 10.0;
                     result += c.to_digit(10).unwrap() as f32;
 
-                    self.next();
+                    parsed = true;
+                    self.iter_next();
                 }
                 '.' => {
                     parsed = true;
-
-                    self.next();
+                    self.iter_next();
 
                     while let Some((_, c)) = self.iter.peek() {
+                        // parse decimal
                         match c {
                             '0'..='9' => {
                                 decimal *= 0.1;
                                 result += c.to_digit(10).unwrap() as f32 * decimal;
 
-                                self.next();
+                                self.iter_next();
                             }
                             _ => {
                                 break 'outer;
@@ -236,7 +235,7 @@ impl Context<'_> {
                 });
 
                 // println!("operator [{}] {}", index, c);
-                self.next();
+                self.iter_next();
             }
         }
     }
@@ -250,7 +249,7 @@ impl Context<'_> {
                     state.unary = c.clone();
 
                     // println!("unary operator [{}] {}", index, c);
-                    self.next();
+                    self.iter_next();
                 }
                 _ => {}
             }
@@ -269,7 +268,7 @@ impl Context<'_> {
         while let Some((_, c)) = self.iter.peek() {
             match c {
                 _ if { c.is_whitespace() && state.token != TokenType::UnaryOperator } => {
-                    self.next();
+                    self.iter_next();
                 }
                 '+' | '-'
                     if {
@@ -291,7 +290,7 @@ impl Context<'_> {
                     state.apply_unary();
                 }
                 '(' if { state.token != TokenType::Number } => {
-                    self.next();
+                    self.iter_next();
                     match self.parse_expression(true) {
                         Ok(inner_state) => {
                             state.token = TokenType::Number;
@@ -305,7 +304,7 @@ impl Context<'_> {
                 }
                 ')' if { paren_opened } => {
                     paren_opened = false;
-                    self.next();
+                    self.iter_next();
                     break;
                 }
                 '+' | '-' | '*' | '/' | '^' if { state.token == TokenType::Number } => {
