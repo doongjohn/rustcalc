@@ -1,49 +1,15 @@
-/*
-simple math expression parser
-
-- no heap allocation except `stdin().read_line()` and `format!()`
-- f32 number
-- predefined constatns
-    - 'pi', 'tau', 'e'
-- unary opeartor
-    - '+', '-'
-- infix operator
-    - '+', '-', '*', '/', '^'
-    - operator precedence
-- nested parentheses
-- simple error message
-*/
-
-/*
-- if char is number:
-    - state.num = number
-- if char is operator:
-    - if state.op_prec == current op_prec:
-      ```
-      state.op_list[prec].op(state.op_list[prec].num, state.num)
-      state.op_list[prec] = None
-      ```
-    - if state.op_prec > current op_prec:
-      ```
-      for p in (0..=state.op_list.high).rev():
-          state.op_list[p].op(state.op_list[p].num, state.num)
-          state.op_list[p] = None
-      ```
-    - store operator to state.op_list[prec].op
-    - store state.num to state.op_list[prec].num
-    - store current op_prec to state.op_prec
-*/
-
 // TODO: support builtin function (sqrt, abs, floor, ceil, round, ...)
 // TODO: support imaginary number
 // TODO: support custom variable (declaration, assignment)
 // TODO: support custom function (infix, unary)
 
+// TODO: refactor parse_*_repeat
+
 use std::{
     f32::consts::{E, PI, TAU},
     io::stdin,
     iter::Peekable,
-    str::CharIndices,
+    str::{CharIndices, FromStr},
 };
 
 struct Context<'a> {
@@ -70,13 +36,31 @@ impl Context<'_> {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 enum TokenType {
-    None,
-    UnkownConstant,
+    EOF,
     Number,
     InfixOperator,
     UnaryOperator,
+    ParenthesisOpen,
+    ParenthesisClose,
+}
+
+#[derive(Debug)]
+enum ParseError {
+    Unreachable,
+    ParsedFailed,
+}
+
+type NextTokens = [Option<TokenType>; 6];
+type ParseResult = Result<NextTokens, ParseError>;
+
+fn make_next_tokens(tokens: &[TokenType]) -> NextTokens {
+    let mut result: NextTokens = Default::default();
+    for (i, tok) in tokens.iter().enumerate() {
+        result[i] = Some(tok.clone());
+    }
+    result
 }
 
 struct Opteration {
@@ -86,10 +70,10 @@ struct Opteration {
 
 struct State {
     op_list: [Option<Opteration>; 3],
-    token: TokenType,
     unary: char,
     num: f32,
     op_prec: i8,
+    paren_opened: bool,
 }
 
 impl State {
@@ -128,7 +112,65 @@ impl State {
 }
 
 impl Context<'_> {
-    fn parse_constant(&mut self, state: &mut State) {
+    fn parse_char(&mut self, _state: &mut State, ch: char) -> bool {
+        if let Some((_, c)) = self.iter.peek() {
+            if *c == ch {
+                self.iter_next();
+                return true;
+            }
+        }
+        false
+    }
+
+    fn parse_char_repeat(&mut self, _state: &mut State, ch: char) -> bool {
+        let mut parsed = false;
+        while let Some((_, c)) = self.iter.peek() {
+            if *c != ch {
+                break;
+            }
+            parsed = true;
+            self.iter_next();
+        }
+        parsed
+    }
+
+    fn parse_if(&mut self, _state: &mut State, func: fn(char) -> bool) -> bool {
+        if let Some((_, c)) = self.iter.peek() {
+            if func(*c) {
+                self.iter_next();
+                return true;
+            }
+        }
+        false
+    }
+
+    fn parse_if_repeat(&mut self, _state: &mut State, func: fn(char) -> bool) -> bool {
+        let mut parsed = false;
+        while let Some((_, c)) = self.iter.peek() {
+            if !func(*c) {
+                break;
+            }
+            parsed = true;
+            self.iter_next();
+        }
+        parsed
+    }
+
+    fn parse_one_of(
+        &mut self,
+        state: &mut State,
+        parsers: &[fn(&mut Self, &mut State) -> ParseResult],
+    ) -> ParseResult {
+        for f in parsers {
+            if let Ok(next_tokens) = f(self, state) {
+                return Ok(next_tokens);
+            }
+        }
+
+        Err(ParseError::ParsedFailed)
+    }
+
+    fn parse_constant(&mut self, state: &mut State) -> ParseResult {
         const CONSTANTS: [&str; 3] = ["pi", "tau", "e"];
         const CONSTANTS_VALUE: [f32; 3] = [PI, TAU, E];
 
@@ -136,7 +178,6 @@ impl Context<'_> {
         for (i, constant) in CONSTANTS.iter().enumerate() {
             if self.text[self.index..].starts_with(constant) {
                 // update state
-                state.token = TokenType::Number;
                 state.num = CONSTANTS_VALUE[i];
 
                 parsed = true;
@@ -145,12 +186,27 @@ impl Context<'_> {
             }
         }
 
-        if !parsed {
-            state.token = TokenType::UnkownConstant;
+        if parsed {
+            // skip whitespace
+            self.parse_if_repeat(state, char::is_whitespace);
+
+            if state.paren_opened {
+                return Ok(make_next_tokens(&[
+                    TokenType::InfixOperator,
+                    TokenType::ParenthesisClose,
+                ]));
+            } else {
+                return Ok(make_next_tokens(&[
+                    TokenType::EOF,
+                    TokenType::InfixOperator,
+                ]));
+            }
         }
+
+        Err(ParseError::ParsedFailed)
     }
 
-    fn parse_number(&mut self, state: &mut State) {
+    fn parse_float(&mut self, state: &mut State) -> ParseResult {
         let mut result: f32 = 0.;
         let mut decimal: f32 = 1.;
 
@@ -192,14 +248,32 @@ impl Context<'_> {
 
         if parsed {
             // update state
-            state.token = TokenType::Number;
             state.num = result;
 
-            // println!("number [{}] {}", index, result);
+            // skip whitespace
+            self.parse_if_repeat(state, char::is_whitespace);
+
+            if state.paren_opened {
+                return Ok(make_next_tokens(&[
+                    TokenType::InfixOperator,
+                    TokenType::ParenthesisClose,
+                ]));
+            } else {
+                return Ok(make_next_tokens(&[
+                    TokenType::EOF,
+                    TokenType::InfixOperator,
+                ]));
+            }
         }
+
+        Err(ParseError::ParsedFailed)
     }
 
-    fn parse_operator(&mut self, state: &mut State) {
+    fn parse_number(&mut self, state: &mut State) -> ParseResult {
+        return self.parse_one_of(state, &[Self::parse_constant, Self::parse_float]);
+    }
+
+    fn parse_operator(&mut self, state: &mut State) -> ParseResult {
         let mut parsed_prec: i8 = -1;
 
         if let Some((_, c)) = self.iter.peek() {
@@ -227,162 +301,187 @@ impl Context<'_> {
                 }
 
                 // update state
-                state.token = TokenType::InfixOperator;
                 state.op_prec = parsed_prec;
                 state.op_list[prec] = Some(Opteration {
                     num: state.num,
                     op: c.clone(),
                 });
 
-                // println!("operator [{}] {}", index, c);
                 self.iter_next();
+
+                // skip whitespace
+                self.parse_if_repeat(state, char::is_whitespace);
+
+                return Ok(make_next_tokens(&[
+                    TokenType::Number,
+                    TokenType::UnaryOperator,
+                    TokenType::ParenthesisOpen,
+                ]));
             }
         }
+
+        Err(ParseError::ParsedFailed)
     }
 
-    fn parse_unary(&mut self, state: &mut State) {
+    fn parse_unary(&mut self, state: &mut State) -> ParseResult {
         if let Some((_, c)) = self.iter.peek() {
             match c {
                 '+' | '-' => {
                     // update state
-                    state.token = TokenType::UnaryOperator;
                     state.unary = c.clone();
 
-                    // println!("unary operator [{}] {}", index, c);
                     self.iter_next();
+
+                    return Ok(make_next_tokens(&[
+                        TokenType::Number,
+                        TokenType::ParenthesisOpen,
+                    ]));
                 }
                 _ => {}
             }
         }
+
+        Err(ParseError::ParsedFailed)
     }
 
-    fn parse_expression(&mut self, mut paren_opened: bool) -> Result<State, String> {
+    fn parse_expression(&mut self, paren_opened: bool) -> Result<State, String> {
         let mut state = State {
             op_list: Default::default(),
-            token: TokenType::None,
             unary: 0 as char,
             num: 0.,
             op_prec: 0,
+            paren_opened,
         };
 
-        while let Some((_, c)) = self.iter.peek() {
-            match c {
-                _ if { c.is_whitespace() && state.token != TokenType::UnaryOperator } => {
-                    self.iter_next();
-                }
-                '+' | '-'
-                    if {
-                        state.token == TokenType::None || state.token == TokenType::InfixOperator
-                    } =>
-                {
-                    self.parse_unary(&mut state);
-                }
-                'a'..='z'
-                    if {
-                        state.token != TokenType::Number && state.token != TokenType::UnkownConstant
-                    } =>
-                {
-                    self.parse_constant(&mut state);
-                    state.apply_unary();
-                }
-                '.' | '0'..='9' if { state.token != TokenType::Number } => {
-                    self.parse_number(&mut state);
-                    state.apply_unary();
-                }
-                '(' if { state.token != TokenType::Number } => {
-                    self.iter_next();
-                    match self.parse_expression(true) {
-                        Ok(inner_state) => {
-                            state.token = TokenType::Number;
-                            state.num = inner_state.num;
-                            state.apply_unary();
+        let mut err_msg = String::new();
+        let mut parse_result: ParseResult = Err(ParseError::Unreachable);
+        let mut next_tokens: NextTokens = make_next_tokens(&[
+            TokenType::Number,
+            TokenType::UnaryOperator,
+            TokenType::ParenthesisOpen,
+        ]);
+
+        while next_tokens[0].is_some() {
+            parse_result = Err(ParseError::Unreachable);
+            for tok in next_tokens.iter() {
+                match tok {
+                    None => {
+                        break;
+                    }
+                    Some(tok) => {
+                        match tok {
+                            TokenType::EOF => {
+                                if let None = self.iter.peek() {
+                                    parse_result = Ok(Default::default());
+                                } else {
+                                    parse_result = Err(ParseError::ParsedFailed);
+                                }
+                            }
+                            TokenType::Number => {
+                                parse_result = self.parse_number(&mut state);
+                                if parse_result.is_ok() {
+                                    state.apply_unary();
+                                }
+                            }
+                            TokenType::UnaryOperator => {
+                                parse_result = self.parse_unary(&mut state);
+                            }
+                            TokenType::InfixOperator => {
+                                parse_result = self.parse_operator(&mut state);
+                            }
+                            TokenType::ParenthesisOpen => {
+                                if self.parse_char(&mut state, '(') {
+                                    match self.parse_expression(true) {
+                                        Ok(inner_state) => {
+                                            state.num = inner_state.num;
+                                            state.apply_unary();
+                                            parse_result = Ok(make_next_tokens(&[
+                                                TokenType::EOF,
+                                                TokenType::InfixOperator,
+                                                TokenType::ParenthesisClose,
+                                            ]));
+                                        }
+                                        Err(msg) => {
+                                            err_msg = msg;
+                                            parse_result = Err(ParseError::ParsedFailed);
+                                        }
+                                    }
+                                } else {
+                                    parse_result = Err(ParseError::ParsedFailed);
+                                }
+                            }
+                            TokenType::ParenthesisClose => {
+                                if self.parse_char(&mut state, ')') {
+                                    parse_result = Ok(Default::default());
+                                } else {
+                                    parse_result = Err(ParseError::ParsedFailed);
+                                }
+                            }
                         }
-                        Err(msg) => {
-                            return Err(msg);
+
+                        if let Ok(next) = &parse_result {
+                            next_tokens = next.clone();
+                            break;
                         }
                     }
                 }
-                ')' if { paren_opened } => {
-                    paren_opened = false;
-                    self.iter_next();
-                    break;
-                }
-                '+' | '-' | '*' | '/' | '^' if { state.token == TokenType::Number } => {
-                    self.parse_operator(&mut state);
-                }
-                _ => match state.token {
-                    TokenType::UnkownConstant => {
-                        return Err(format!(
-                            "error: expect {{ `pi` | 'tau' | 'e' }} at index {} but found \"{}\"",
-                            self.index, c
-                        ));
-                    }
-                    TokenType::None | TokenType::InfixOperator => {
-                        return Err(format!(
-                        "error: expect {{ `Number` | `UnaryOperator` | `(` }} at index {} but found \"{}\"",
-                        self.index, c
-                    ));
-                    }
-                    TokenType::UnaryOperator => {
-                        return Err(format!(
-                            "error: expect {{ `Number` | `(` }} at index {} but found \"{}\"",
-                            self.index, c
-                        ));
-                    }
-                    TokenType::Number => {
-                        return Err(format!(
-                            "error: expect {{ `InfixOperator` }} at index {} but found \"{}\"",
-                            self.index, c
-                        ));
-                    }
-                },
+            }
+
+            if parse_result.is_err() {
+                break;
             }
         }
 
-        match state.token {
-            TokenType::None => {
-                return Err(format!(
-                    "error: expect {{ `Number` | `UnaryOperator` | `(` }} at index {}",
-                    self.index
-                ));
-            }
-            TokenType::InfixOperator | TokenType::UnaryOperator => {
-                return Err(format!(
-                    "error: expect {{ `Number` }} at index {}",
-                    self.index
-                ));
-            }
-            TokenType::Number => {
+        match parse_result {
+            Ok(_) => {
                 state.calcuate_op_list_all();
+                Ok(state)
             }
-            _ => {}
+            Err(err) => {
+                match err {
+                    ParseError::Unreachable => unreachable!(),
+                    ParseError::ParsedFailed => {
+                        if err_msg.is_empty() {
+                            err_msg = String::from_str("Expected one of [\n").unwrap();
+                            for tok in next_tokens.iter() {
+                                match tok {
+                                    None => break,
+                                    Some(tok) => err_msg.push_str(&format!("  {:?}\n", tok)),
+                                }
+                            }
+                            err_msg.push_str("]\n");
+                            if let Some((_, c)) = self.iter.peek() {
+                                err_msg.push_str(&format!("But found \"{}\"", c))
+                            } else {
+                                err_msg.push_str(&format!("But found EOF"))
+                            }
+                            err_msg.push_str(&format!(" at index {}", self.index))
+                        }
+                    }
+                }
+                Err(err_msg)
+            }
         }
-
-        if paren_opened {
-            return Err(format!("error: expect {{ `)` }} at index {}", self.index));
-        }
-
-        Ok(state)
     }
 }
 
 fn main() {
-    let mut text = String::new();
-    _ = stdin().read_line(&mut text).unwrap();
+    let mut input = String::new();
+    _ = stdin().read_line(&mut input).unwrap();
 
-    // let text = "1 + 2 + 3 + (1)--2*-(+(2.3+22.7)+2*3^2)*-2"; // = 179
-    // let text = "1 + -pi * tau"; // = -18.73921
-    // println!("{}", text);
+    // let input = "1 + 2 + 3 + ((1))-(((-2)))*-(+(2.3+22.7)+2*3^2)*-2"; // = 179
+    // let input = "1 + -pi * tau"; // = -18.73921
+    // println!("{}", input);
 
-    let text = text.trim();
+    let input = input.trim();
     let mut context = Context {
-        text,
-        iter: text.char_indices().peekable(),
+        text: input,
+        iter: input.char_indices().peekable(),
         index: 0,
     };
 
     match context.parse_expression(false) {
         Ok(state) => println!("= {}", state.num),
-        Err(msg) => println!("{}", msg),
+        Err(err) => println!("Error: {}", err),
     }
 }
