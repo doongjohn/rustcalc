@@ -10,7 +10,7 @@ use rustyline::DefaultEditor;
 use std::{
     f32::consts::{E, PI, TAU},
     iter::Peekable,
-    str::{CharIndices, FromStr}, fmt::format,
+    str::{CharIndices, FromStr},
 };
 
 struct Context<'a> {
@@ -459,7 +459,7 @@ impl Context<'_> {
                                     None => break,
                                     Some(tok) => {
                                         err_msg.push_str(&format!("{:?}", tok));
-                                        if let Some(Some(_)) = next_tokens.iter().nth(i+1) {
+                                        if let Some(Some(_)) = next_tokens.iter().nth(i + 1) {
                                             err_msg.push_str(", ");
                                         }
                                     }
