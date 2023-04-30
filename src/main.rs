@@ -38,7 +38,7 @@ impl Context<'_> {
 
 #[derive(Debug, PartialEq, Clone)]
 enum TokenType {
-    EOF,
+    Eof,
     Number,
     InfixOperator,
     UnaryOperator,
@@ -197,7 +197,7 @@ impl Context<'_> {
                 ]));
             } else {
                 return Ok(make_next_tokens(&[
-                    TokenType::EOF,
+                    TokenType::Eof,
                     TokenType::InfixOperator,
                 ]));
             }
@@ -260,7 +260,7 @@ impl Context<'_> {
                 ]));
             } else {
                 return Ok(make_next_tokens(&[
-                    TokenType::EOF,
+                    TokenType::Eof,
                     TokenType::InfixOperator,
                 ]));
             }
@@ -370,7 +370,7 @@ impl Context<'_> {
                     }
                     Some(tok) => {
                         match tok {
-                            TokenType::EOF => {
+                            TokenType::Eof => {
                                 if let None = self.iter.peek() {
                                     parse_result = Ok(Default::default());
                                 } else {
@@ -396,7 +396,7 @@ impl Context<'_> {
                                             state.num = inner_state.num;
                                             state.apply_unary();
                                             parse_result = Ok(make_next_tokens(&[
-                                                TokenType::EOF,
+                                                TokenType::Eof,
                                                 TokenType::InfixOperator,
                                                 TokenType::ParenthesisClose,
                                             ]));
