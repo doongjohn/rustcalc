@@ -35,7 +35,7 @@
           state.op_list[p] = None;
       }
       ```
-          - update state
-              - store current op_prec to state.op_prec
-              - store state.num to state.op_list[prec].num
-              - store operator to state.op_list[prec].op
+      - update state
+          - store current op_prec to state.op_prec
+          - store state.num to state.op_list[prec].num
+          - store operator to state.op_list[prec].op
