@@ -29,6 +29,13 @@ Error: expected one of {InfixOperator, ParenthesisClose} but found EOF at index 
 - nested parentheses
 - simple error message
 
+## todo
+
+- support builtin function (sqrt, abs, floor, ceil, round, ...)
+- support imaginary number
+- support custom variable (declaration, assignment)
+- support custom function (infix, unary)
+
 ## operator precedence algorithm
 
 - if char is number:

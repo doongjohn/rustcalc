@@ -1,8 +1,3 @@
-// TODO: support builtin function (sqrt, abs, floor, ceil, round, ...)
-// TODO: support imaginary number
-// TODO: support custom variable (declaration, assignment)
-// TODO: support custom function (infix, unary)
-
 mod parser;
 
 use parser::*;
@@ -154,19 +149,13 @@ impl Context<'_> {
 
         if let Some((_, c)) = self.iter.peek() {
             match c {
-                '+' | '-' => {
-                    parsed_prec = 0;
-                }
-                '*' | '/' => {
-                    parsed_prec = 1;
-                }
-                '^' => {
-                    parsed_prec = 2;
-                }
+                '+' | '-' => parsed_prec = 0,
+                '*' | '/' => parsed_prec = 1,
+                '^' => parsed_prec = 2,
                 _ => {}
             }
 
-            if parsed_prec >= 0 {
+            if parsed_prec != -1 {
                 let prec = parsed_prec as usize;
 
                 // do calcuation
@@ -270,6 +259,7 @@ impl Context<'_> {
                         };
 
                         if let Ok(next) = &parse_result {
+                            // apply unary operator
                             if [TokenType::Number, TokenType::ParenthesisOpen].contains(tok) {
                                 state.apply_unary_operator();
                             }
