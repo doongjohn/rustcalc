@@ -2,10 +2,7 @@ mod parser;
 
 use parser::*;
 use rustyline::{error::ReadlineError, DefaultEditor};
-use std::{
-    f32::consts::{E, PI, TAU},
-    str::FromStr,
-};
+use std::f32::consts::{E, PI, TAU};
 
 impl Context<'_> {
     fn parse_constant(&mut self, state: &mut State) -> ParseResult {
