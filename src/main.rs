@@ -9,8 +9,8 @@ use std::{
 
 impl Context<'_> {
     fn parse_constant(&mut self, state: &mut State) -> ParseResult {
-        const CONSTANTS_STR: [&str; 3] = ["pi", "tau", "e"];
-        const CONSTANTS_VAL: [f32; 3] = [PI, TAU, E];
+        const CONSTANTS_STR: [&str; 3] = ["tau", "pi", "e"];
+        const CONSTANTS_VAL: [f32; 3] = [TAU, PI, E];
 
         let mut parsed = false;
         for (i, constant) in CONSTANTS_STR.iter().enumerate() {
