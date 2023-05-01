@@ -1,4 +1,4 @@
-# simple math expression parser
+# simple calculator
 
 ```
 rustcalc) 1+1+1
