@@ -1,5 +1,18 @@
 # simple math expression parser
 
+```
+rustcalc) 1+1+1
+= 3
+rustcalc) 1+1*3
+= 4
+rustcalc) 3*(2+3)
+= 15
+rustcalc) 3+2*2^3
+= 19
+rustcalc) (1+1
+Error: expected one of {InfixOperator, ParenthesisClose} but found EOF at index 4
+```
+
 ## features
 
 - no heap allocation except
