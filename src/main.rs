@@ -40,7 +40,7 @@ impl Context<'_> {
             }
         }
 
-        Err(ParseError::ParsedFailed)
+        Err(ParseError::ParseFailed)
     }
 
     fn parse_float(&mut self, state: &mut State) -> ParseResult {
@@ -116,7 +116,7 @@ impl Context<'_> {
             }
         }
 
-        Err(ParseError::ParsedFailed)
+        Err(ParseError::ParseFailed)
     }
 
     fn parse_number(&mut self, state: &mut State) -> ParseResult {
@@ -141,7 +141,7 @@ impl Context<'_> {
             }
         }
 
-        Err(ParseError::ParsedFailed)
+        Err(ParseError::ParseFailed)
     }
 
     fn parse_infix_operator(&mut self, state: &mut State) -> ParseResult {
@@ -183,7 +183,7 @@ impl Context<'_> {
             }
         }
 
-        Err(ParseError::ParsedFailed)
+        Err(ParseError::ParseFailed)
     }
 
     fn parse_parenthesis_open(&mut self, state: &mut State) -> ParseResult {
@@ -205,10 +205,10 @@ impl Context<'_> {
                         ]))
                     }
                 }
-                Err(_) => Err(ParseError::ParsedFailed),
+                Err(_) => Err(ParseError::ParseFailed),
             }
         } else {
-            Err(ParseError::ParsedFailed)
+            Err(ParseError::ParseFailed)
         }
     }
 
@@ -216,7 +216,7 @@ impl Context<'_> {
         if self.parse_char(state, ')') {
             Ok(Default::default())
         } else {
-            Err(ParseError::ParsedFailed)
+            Err(ParseError::ParseFailed)
         }
     }
 
@@ -253,7 +253,7 @@ impl Context<'_> {
                                 if let None = self.iter.peek() {
                                     Ok(Default::default())
                                 } else {
-                                    Err(ParseError::ParsedFailed)
+                                    Err(ParseError::ParseFailed)
                                 }
                             }
                         };
@@ -286,31 +286,9 @@ impl Context<'_> {
             Err(err) => {
                 match err {
                     ParseError::Unreachable => unreachable!(),
-                    ParseError::ParsedFailed => {
+                    ParseError::ParseFailed => {
                         if self.err_msg.is_empty() {
-                            let next_tokens = get_valid_tokens(&next_tokens);
-                            if next_tokens.len() == 0 {
-                                unreachable!();
-                            } else if next_tokens.len() == 1 {
-                                self.err_msg = String::from_str("expected {").unwrap();
-                            } else {
-                                self.err_msg = String::from_str("expected one of {").unwrap();
-                            }
-                            // expected tokens
-                            for (i, tok) in next_tokens.iter().flatten().enumerate() {
-                                self.err_msg.push_str(&format!("{:?}", tok));
-                                if next_tokens.iter().nth(i + 1).is_some() {
-                                    self.err_msg.push_str(", ");
-                                }
-                            }
-                            // but found
-                            self.err_msg.push_str("} but found ");
-                            if let Some((_, c)) = self.iter.peek() {
-                                self.err_msg.push_str(&format!("\"{}\"", c));
-                            } else {
-                                self.err_msg.push_str("EOF");
-                            }
-                            self.err_msg.push_str(&format!(" at index {}", self.index));
+                            self.generate_parse_failed_err_msg(&next_tokens);
                         }
                     }
                 }

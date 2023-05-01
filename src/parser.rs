@@ -1,4 +1,7 @@
-use std::{iter::Peekable, str::CharIndices};
+use std::{
+    iter::Peekable,
+    str::{CharIndices, FromStr},
+};
 
 pub struct Context<'a> {
     pub text: &'a str,
@@ -38,7 +41,7 @@ pub enum TokenType {
 #[derive(Debug)]
 pub enum ParseError {
     Unreachable,
-    ParsedFailed,
+    ParseFailed,
 }
 
 pub type NextTokens = [Option<TokenType>; TokenType::Eof as usize];
@@ -112,6 +115,32 @@ impl State {
 }
 
 impl Context<'_> {
+    pub fn generate_parse_failed_err_msg(&mut self, next_tokens: &NextTokens) {
+        let next_tokens = get_valid_tokens(next_tokens);
+        if next_tokens.len() == 0 {
+            unreachable!();
+        } else if next_tokens.len() == 1 {
+            self.err_msg = String::from_str("expected {").unwrap();
+        } else {
+            self.err_msg = String::from_str("expected one of {").unwrap();
+        }
+        // expected tokens
+        for (i, tok) in next_tokens.iter().flatten().enumerate() {
+            self.err_msg.push_str(&format!("{:?}", tok));
+            if next_tokens.iter().nth(i + 1).is_some() {
+                self.err_msg.push_str(", ");
+            }
+        }
+        // but found
+        self.err_msg.push_str("} but found ");
+        if let Some((_, c)) = self.iter.peek() {
+            self.err_msg.push_str(&format!("\"{}\"", c));
+        } else {
+            self.err_msg.push_str("EOF");
+        }
+        self.err_msg.push_str(&format!(" at index {}", self.index));
+    }
+
     pub fn parse_char(&mut self, _state: &mut State, ch: char) -> bool {
         if let Some((_, c)) = self.iter.peek() {
             if *c == ch {
@@ -167,6 +196,6 @@ impl Context<'_> {
             }
         }
 
-        Err(ParseError::ParsedFailed)
+        Err(ParseError::ParseFailed)
     }
 }
