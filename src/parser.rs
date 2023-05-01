@@ -4,6 +4,7 @@ pub struct Context<'a> {
     pub text: &'a str,
     pub iter: Peekable<CharIndices<'a>>,
     pub index: usize,
+    pub err_msg: String,
 }
 
 impl Context<'_> {
@@ -49,6 +50,17 @@ pub fn make_next_tokens(tokens: &[TokenType]) -> NextTokens {
         result[i] = Some(tok.clone());
     }
     result
+}
+
+pub fn get_valid_tokens(tokens: &[Option<TokenType>]) -> &[Option<TokenType>] {
+    let mut high: usize = 0;
+    for (i, tok) in tokens.iter().enumerate() {
+        if tok.is_none() {
+            break;
+        }
+        high = i;
+    }
+    &tokens[0..=high]
 }
 
 pub struct Opteration {
