@@ -306,12 +306,14 @@ impl Context<'_> {
                             } else {
                                 self.err_msg = String::from_str("expected one of {").unwrap();
                             }
+                            // expected tokens
                             for (i, tok) in next_tokens.iter().flatten().enumerate() {
                                 self.err_msg.push_str(&format!("{:?}", tok));
                                 if next_tokens.iter().nth(i + 1).is_some() {
                                     self.err_msg.push_str(", ");
                                 }
                             }
+                            // but found
                             self.err_msg.push_str("} but found ");
                             if let Some((_, c)) = self.iter.peek() {
                                 self.err_msg.push_str(&format!("\"{}\"", c));
