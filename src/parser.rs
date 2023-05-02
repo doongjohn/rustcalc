@@ -66,13 +66,13 @@ pub fn get_valid_tokens(tokens: &[Option<TokenType>]) -> &[Option<TokenType>] {
     &tokens[0..=high]
 }
 
-pub struct Opteration {
+pub struct Operation {
     pub num: f32,
     pub op: char,
 }
 
 pub struct State {
-    pub op_list: [Option<Opteration>; 3],
+    pub op_list: [Option<Operation>; 3],
     pub unary: char,
     pub num: f32,
     pub op_prec: i8,

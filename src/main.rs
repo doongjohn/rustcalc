@@ -164,7 +164,7 @@ impl Context<'_> {
 
                 // update state
                 state.op_prec = parsed_prec;
-                state.op_list[prec] = Some(Opteration {
+                state.op_list[prec] = Some(Operation {
                     num: state.num,
                     op: c.clone(),
                 });
