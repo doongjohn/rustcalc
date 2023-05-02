@@ -185,7 +185,7 @@ impl Context<'_> {
 
     fn parse_parenthesis_open(&mut self, state: &mut State) -> ParseResult {
         if self.parse_char(state, '(') {
-            match self.parse_expression(true) {
+            match self.eval_expression(true) {
                 Ok(inner_state) => {
                     // update state
                     state.num = inner_state.num;
@@ -217,7 +217,7 @@ impl Context<'_> {
         }
     }
 
-    fn parse_expression(&mut self, paren_opened: bool) -> Result<State, ()> {
+    fn eval_expression(&mut self, paren_opened: bool) -> Result<State, ()> {
         let mut state = State {
             op_list: Default::default(),
             unary: 0 as char,
@@ -314,7 +314,7 @@ fn main() {
                     err_msg: String::new(),
                 };
 
-                match context.parse_expression(false) {
+                match context.eval_expression(false) {
                     Ok(state) => println!("= {}", state.num),
                     Err(_) => println!("Error: {}", context.err_msg),
                 }
