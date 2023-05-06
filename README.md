@@ -18,7 +18,7 @@ Error: expected one of {InfixOperator, ParenthesisClose} but found EOF at index 
 - no heap allocation except
   - reading an input
   - generating the error message
-- all numbers are f32
+- all numbers are f64
 - predefined constatns
   - `['pi', 'tau', 'e']`
 - unary opeartor

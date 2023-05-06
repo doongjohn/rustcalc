@@ -2,12 +2,12 @@ mod parser;
 
 use parser::*;
 use rustyline::{error::ReadlineError, DefaultEditor};
-use std::f32::consts::{E, PI, TAU};
+use std::f64::consts::{E, PI, TAU};
 
 impl Context<'_> {
     fn parse_constant(&mut self, state: &mut State) -> ParseResult {
         const CONSTANTS_STR: [&str; 3] = ["tau", "pi", "e"];
-        const CONSTANTS_VAL: [f32; 3] = [TAU, PI, E];
+        const CONSTANTS_VAL: [f64; 3] = [TAU, PI, E];
 
         let mut parsed = false;
         for (i, constant) in CONSTANTS_STR.iter().enumerate() {
@@ -41,8 +41,8 @@ impl Context<'_> {
     }
 
     fn parse_float(&mut self, state: &mut State) -> ParseResult {
-        let mut result: f32 = 0.;
-        let mut decimal: f32 = 1.;
+        let mut result: f64 = 0.;
+        let mut decimal: f64 = 1.;
 
         let mut parsed = false;
         'outer: while let Some((_, c)) = self.iter.peek() {
@@ -50,7 +50,7 @@ impl Context<'_> {
             match c {
                 '0'..='9' => {
                     result *= 10.0;
-                    result += c.to_digit(10).unwrap() as f32;
+                    result += c.to_digit(10).unwrap() as f64;
 
                     parsed = true;
                     self.iter_next();
@@ -77,7 +77,7 @@ impl Context<'_> {
                         match c {
                             '0'..='9' => {
                                 decimal *= 0.1;
-                                result += c.to_digit(10).unwrap() as f32 * decimal;
+                                result += c.to_digit(10).unwrap() as f64 * decimal;
 
                                 parsed = true;
                                 self.iter_next();

@@ -67,14 +67,14 @@ pub fn get_valid_tokens(tokens: &[Option<TokenType>]) -> &[Option<TokenType>] {
 }
 
 pub struct Operation {
-    pub num: f32,
+    pub num: f64,
     pub op: char,
 }
 
 pub struct State {
     pub op_list: [Option<Operation>; 3],
     pub unary: char,
-    pub num: f32,
+    pub num: f64,
     pub op_prec: i8,
     pub paren_opened: bool,
 }
