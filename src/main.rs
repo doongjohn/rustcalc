@@ -46,9 +46,9 @@ impl Context<'_> {
 
         let mut parsed = false;
         'outer: while let Some((_, c)) = self.iter.peek() {
-            // parse int
             match c {
                 '0'..='9' => {
+                    // parse int
                     result *= 10.0;
                     result += c.to_digit(10).unwrap() as f64;
 
