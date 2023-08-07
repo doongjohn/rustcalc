@@ -47,6 +47,7 @@ impl Context<'_> {
         let mut parsed = false;
         'outer: while let Some((_, c)) = self.iter.peek() {
             match c {
+                // matches `.0` and `0.` but not `.`
                 '0'..='9' => {
                     // parse int
                     result *= 10.0;
@@ -56,9 +57,6 @@ impl Context<'_> {
                     self.iter_next();
                 }
                 '.' => {
-                    // 3.
-                    // .3
-                    // 3.1
                     if parsed {
                         self.iter_next();
                     } else {
