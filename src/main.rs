@@ -1,7 +1,7 @@
 mod parser;
 
 use parser::*;
-use rustyline::{error::ReadlineError, DefaultEditor};
+use rustyline::error::ReadlineError;
 use std::f64::consts::{E, PI, TAU};
 
 impl Context<'_> {
@@ -294,7 +294,7 @@ impl Context<'_> {
 }
 
 fn main() {
-    let mut editor = DefaultEditor::new().unwrap();
+    let mut editor = rustyline::DefaultEditor::new().unwrap();
     loop {
         match editor.readline("rustcalc) ") {
             Ok(input) => {
