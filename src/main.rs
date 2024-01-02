@@ -155,7 +155,7 @@ impl Context<'_> {
 
                 // do calcuation
                 if state.op_prec == parsed_prec {
-                    state.calcuate_op_list_at(prec);
+                    state.calcuate_op_list_prec(prec);
                 } else if state.op_prec > parsed_prec {
                     state.calcuate_op_list_all();
                 }

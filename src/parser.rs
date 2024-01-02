@@ -82,7 +82,7 @@ pub struct State {
 }
 
 impl State {
-    pub fn calcuate_op_list_at(&mut self, prec: usize) {
+    pub fn calcuate_op_list_prec(&mut self, prec: usize) {
         if let Some(op) = &mut self.op_list[prec] {
             self.num = match op.op {
                 '+' => op.num + self.num,
@@ -98,7 +98,7 @@ impl State {
 
     pub fn calcuate_op_list_all(&mut self) {
         for p in (0..=self.op_list.len() - 1).rev() {
-            Self::calcuate_op_list_at(self, p);
+            self.calcuate_op_list_prec(p);
         }
     }
 
