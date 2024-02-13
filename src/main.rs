@@ -44,7 +44,7 @@ impl Context<'_> {
         let mut result: f64 = 0.;
         let mut decimal: f64 = 1.;
 
-        let mut parsed = false;
+        let mut is_parsed = false;
         'outer: while let Some((_, c)) = self.iter.peek() {
             match c {
                 // matches `.0` and `0.` but not `.`
@@ -53,11 +53,11 @@ impl Context<'_> {
                     result *= 10.0;
                     result += c.to_digit(10).unwrap() as f64;
 
-                    parsed = true;
+                    is_parsed = true;
                     self.iter_next();
                 }
                 '.' => {
-                    if parsed {
+                    if is_parsed {
                         self.iter_next();
                     } else {
                         if let Some((_, c)) = self.iter.clone().nth(1) {
@@ -77,7 +77,7 @@ impl Context<'_> {
                                 decimal *= 0.1;
                                 result += c.to_digit(10).unwrap() as f64 * decimal;
 
-                                parsed = true;
+                                is_parsed = true;
                                 self.iter_next();
                             }
                             _ => {
@@ -92,7 +92,7 @@ impl Context<'_> {
             }
         }
 
-        if parsed {
+        if is_parsed {
             // update state
             state.num = result;
 
