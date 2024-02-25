@@ -301,10 +301,6 @@ fn main() {
                 let input = input.trim();
                 editor.add_history_entry(input).unwrap();
 
-                // let input = "1 + 2 + 3 + ((1))-(((-2)))*-(+(2.3+22.7)+2*3^2)*-2"; // = 179
-                // let input = "1 + -pi * tau"; // = -18.73921
-                // println!("{}", input);
-
                 let mut context = Context {
                     text: input,
                     iter: input.char_indices().peekable(),
@@ -317,10 +313,7 @@ fn main() {
                     Err(_) => println!("Error: {}", context.err_msg),
                 }
             }
-            Err(ReadlineError::Interrupted) => {
-                break;
-            }
-            Err(ReadlineError::Eof) => {
+            Err(ReadlineError::Interrupted | ReadlineError::Eof) => {
                 break;
             }
             Err(err) => {
